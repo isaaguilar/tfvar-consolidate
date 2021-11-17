@@ -1,29 +1,52 @@
 # tfvar-consolidate
 
-Consolidate tfvars into a single file.
-
-> **PROOF Of CONCEPT** Note that this project is a simple proof-of-concept and does not work exactly as stacking `-var-file` flags using the `terraform` command yet.
+Consolidate `tfvars` into a single file. Accepts **HCL** and **JSON** formats. The output is **HCL**.
 
 ## Installation
 
 Install the binary with go
 
 ```
-go install github.com/isaaguilar/tfvar-consolidate
+go get -u github.com/isaaguilar/tfvar-consolidate
 ```
+
+This will install `tfvar-consolidate` in `$GOPATH/bin`, which usually places it
+into your shell `PATH` so you can then run it as `tfvar-consolidate`.
 
 
 ## Usage:
 
-Run the binary and pass in the `tfvars` files to consolidate. The precedence
-order of consolidation will take the last value defined. Currently, the
-consolidation does not traverse maps or arrays types. So a map definition will
-overwrite a map with the same root key.
+Run the binary and pass in the `tfvars` files to consolidate with the `-f` flag.
+The var precedence order of consolidation will take the last value defined.
+Like `terraform`, var consolidation does not traverse maps or arrays.
 
-Example:
+For example, when faced with two files that define the same value:
+
+```hcl2
+# file1.tfvars
+instance = {
+    class = "m5",
+    size = "large"
+}
+
+# file2.tfvars
+instance = {
+    foo = "bar"
+}
 ```
-tfvar-consolidate -f file1.tfvars -f file2.tfvars --out out.tfvars
+
+Then running the program:
+
+```bash
+tfvar-consolidate -f file1.tfvars -f file2.tfvars --out consolidated.tfvars
 ```
 
-The result of consolidating `file1.tfvars` and `file2.tfvars` will be saved to `out.tfvars`.
+The result of consolidating `file1.tfvars` and `file2.tfvars` will be saved to
+`consolidated.tfvars`. And the output will just show the last value:
 
+```
+# consolidated.tfvars
+instance = {
+  foo = "bar"
+}
+```
