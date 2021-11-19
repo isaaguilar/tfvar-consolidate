@@ -108,13 +108,34 @@ func jsonToHcl(j interface{}, indentCount int) (string, error) {
 
 // Consolidate will open the files, read the contents, and try to create a
 // single tfvar file.
-func Consolidate(out string, files []string) error {
+func Consolidate(out string, files []string, useEnvs bool) error {
 
-	if out == "" {
-		o, _ := ioutil.TempFile("", "t")
-		out = o.Name()
-		fmt.Fprintf(os.Stderr, "Saving to: ")
-		fmt.Fprintln(os.Stdout, out)
+	f, err := ioutil.TempFile("", "e")
+	if err == nil {
+		files = append(files, f.Name())
+		defer os.Remove(f.Name())
+	} else if err != nil && useEnvs {
+		return err
+	}
+	if useEnvs {
+		envVars := ""
+		for _, env := range os.Environ() {
+			if strings.HasPrefix(env, "TF_VAR_") {
+				k := strings.TrimPrefix(strings.Split(env, "=")[0], "TF_VAR_")
+				v := strings.Join(strings.Split(env, "=")[1:], "=")
+				if v == "" {
+					continue
+				}
+				if string(v[0]) != "{" && string(v[0]) != "[" {
+					v = fmt.Sprintf("\"%s\"", v)
+				}
+				envVars += fmt.Sprintf("\n%s = %s", k, v)
+			}
+		}
+		_, err := f.Write([]byte(envVars))
+		if err != nil {
+			return err
+		}
 	}
 
 	var tfvars []byte
@@ -213,6 +234,13 @@ func Consolidate(out string, files []string) error {
 	sort.Strings(keys)
 	for _, k := range keys {
 		fmt.Fprintf(&c, "%s\n\n", keyIndexer[k])
+	}
+
+	if out == "" {
+		o, _ := ioutil.TempFile("", "t")
+		out = o.Name()
+		fmt.Fprintf(os.Stderr, "Saving to: ")
+		fmt.Fprintln(os.Stdout, out)
 	}
 
 	if out == "" {
