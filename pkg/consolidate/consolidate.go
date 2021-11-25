@@ -44,7 +44,7 @@ func jsonToHcl(j interface{}, indentCount int) (string, error) {
 				if err != nil {
 					return "", err
 				}
-				output += fmt.Sprintf("%s%s = [\n%s%s]\n", k, indent, _output, indent)
+				output += fmt.Sprintf("%s%s = [\n%s%s]\n", indent, k, _output, indent)
 			case map[string]interface{}:
 				// format:
 				// k = {v}
@@ -52,7 +52,7 @@ func jsonToHcl(j interface{}, indentCount int) (string, error) {
 				if err != nil {
 					return "", err
 				}
-				output += fmt.Sprintf("%s%s = {\n%s%s}\n", k, indent, _output, indent)
+				output += fmt.Sprintf("%s%s = {\n%s%s}\n", indent, k, _output, indent)
 			default:
 				return "", fmt.Errorf("not sure what type item %q is, but I think it might be %T", k, c)
 			}
@@ -108,7 +108,7 @@ func jsonToHcl(j interface{}, indentCount int) (string, error) {
 
 // Consolidate will open the files, read the contents, and try to create a
 // single tfvar file.
-func Consolidate(out string, files []string, useEnvs bool) error {
+func Consolidate(out string, files []string, useEnvs bool, backend string) error {
 
 	f, err := ioutil.TempFile("", "e")
 	if err == nil {
@@ -167,6 +167,54 @@ func Consolidate(out string, files []string, useEnvs bool) error {
 
 		tfvars = append(tfvars, b...)
 
+	}
+
+	if backend != "" {
+
+		type BackendResource struct {
+			Resource map[string][]interface{} `json:"backend"`
+		}
+
+		type TerraformBackend struct {
+			Backends []BackendResource `json:"terraform"`
+		}
+
+		b, err := ioutil.ReadFile(backend)
+		if err != nil {
+			return err
+		}
+
+		if !strings.HasSuffix(backend, ".json") {
+			b, err = convert.Bytes(b, "", convert.Options{})
+			if err != nil {
+				return err
+			}
+		}
+
+		// For simplicity, this project makes an assumption the backend is a
+		// fully defined terraform resource. By removing the backend resource
+		// proclamation, only the vars will be extracted.
+		//
+		// Furthermore, since (as far as I know or as far as I have bothered to
+		// test) terraform can be used with a single backend at a time, this
+		// project will just read the first backend resource defined.
+		j := TerraformBackend{}
+		err = json.Unmarshal(b, &j)
+		if err != nil {
+			return err
+		}
+		if len(j.Backends) > 0 {
+			for _, values := range j.Backends[0].Resource {
+				if len(values) > 0 {
+					output, err := jsonToHcl(values[0], 0)
+					if err != nil {
+						return err
+					}
+					b = []byte(output)
+				}
+			}
+		}
+		tfvars = append(tfvars, b...)
 	}
 
 	var c bytes.Buffer
