@@ -24,7 +24,11 @@ func jsonToHcl(j interface{}, indentCount int) (string, error) {
 			case string:
 				// format:
 				// k = "v"
-				output += fmt.Sprintf("%s%s = \"%s\"\n", indent, k, c)
+				s, err := json.Marshal(c)
+				if err != nil {
+					return "", err
+				}
+				output += fmt.Sprintf("%s%s = %s\n", indent, k, string(s))
 			case float64:
 				// format:
 				// k = v
@@ -68,7 +72,11 @@ func jsonToHcl(j interface{}, indentCount int) (string, error) {
 			case string:
 				// format:
 				// "v",
-				output += fmt.Sprintf("%s\"%s\"%s\n", indent, c, comma)
+				s, err := json.Marshal(c)
+				if err != nil {
+					return "", err
+				}
+				output += fmt.Sprintf("%s%s%s\n", indent, string(s), comma)
 			case float64:
 				// format:
 				// v,
